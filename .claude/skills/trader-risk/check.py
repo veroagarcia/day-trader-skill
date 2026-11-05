@@ -124,6 +124,74 @@ CLOSE = datetime.time(16, 0)
 EARLY = datetime.time(13, 0)
 
 
+# ==== BEGIN simulation guard (identical in trader-budget/size.py, trader-risk/check.py, trader-broker/ticket.py) ====
+# This project is a paper simulation with USD 1,000 of pretend money. These checks do not trust the
+# "paper" flag alone: the config must say so in several independent ways, or the tool refuses to run.
+SIM_CAPITAL_USD = 1000.0
+_SIM_SECRET_WORDS = ("key", "secret", "token", "password", "passwd", "credential")
+
+
+def sim_config_violations(cfg):
+    """Why this config is NOT a USD 1,000 simulation. An empty list means it is. Fails closed."""
+    if not isinstance(cfg, dict) or not cfg:
+        return ["trader/config.json is missing or empty: a simulation config is required"]
+    v = []
+    if cfg.get("mode") != "simulation":
+        v.append('"mode" must be "simulation"')
+    if cfg.get("paper") is not True:
+        v.append('"paper" must be true')
+    if cfg.get("broker") != "none":
+        v.append('"broker" must be "none": no broker is ever connected')
+    for k in ("allow_margin", "allow_options", "allow_short"):
+        if cfg.get(k) is not False:
+            v.append('"%s" must be false' % k)
+    try:
+        cap = float(cfg.get("sim_capital_usd"))
+    except (TypeError, ValueError):
+        cap = None
+    if cap != SIM_CAPITAL_USD:
+        v.append('"sim_capital_usd" must be 1000')
+    try:
+        budget = float(cfg.get("budget"))
+    except (TypeError, ValueError):
+        budget = None
+    if budget is None or not 0 < budget <= SIM_CAPITAL_USD:
+        v.append('"budget" must be above 0 and at most 1000')
+    for k in cfg:
+        if any(w in str(k).lower() for w in _SIM_SECRET_WORDS):
+            v.append('"%s" looks like a credential: none belong in this project' % k)
+    return v
+
+
+def _sim_ticker_ok(sym):
+    """A plain US stock ticker (AAPL, BRK.B). Option symbols, crypto pairs and anything odd fail."""
+    s = str(sym or "").strip().upper()
+    for sep in (".", "-"):
+        if sep in s:
+            s, suffix = s.split(sep, 1)
+            if not (suffix.isalpha() and suffix.isascii() and 1 <= len(suffix) <= 2):
+                return False
+            break
+    return s.isalpha() and s.isascii() and 1 <= len(s) <= 5
+
+
+def sim_order_violations(order, doc=None):
+    """Why this order cannot be part of the simulation (real-money flags, options, crypto, odd order classes)."""
+    v = []
+    if isinstance(doc, dict) and doc.get("paper") is False:
+        v.append("the orders file says paper is false")
+    if not isinstance(order, dict):
+        return v + ["the order is not an object"]
+    if not _sim_ticker_ok(order.get("symbol")):
+        v.append("%r is not a plain US stock ticker (no options, crypto or other assets)" % (order.get("symbol"),))
+    if str(order.get("side", "")).lower() not in ("buy", "sell"):
+        v.append("side must be buy or sell")
+    if str(order.get("order_class") or "simple").lower() not in ("simple", "bracket"):
+        v.append("order_class %r is not allowed (only simple and bracket)" % (order.get("order_class"),))
+    return v
+# ==== END simulation guard ====
+
+
 class RiskError(Exception):
     pass
 
@@ -788,7 +856,16 @@ def main(argv=None):
         if not isinstance(orders, list) or not orders:
             raise RiskError("no orders in %s" % a.orders)
         cfg = read_json(a.config, "config", required=False) or {}
+        bad = sim_config_violations(cfg)
+        if bad:
+            raise RiskError("simulation guard: " + "; ".join(bad) + ". Real-money trading is not supported here.")
+        for i, o in enumerate(orders, 1):
+            bad = sim_order_violations(o, doc)
+            if bad:
+                raise RiskError("simulation guard, order %d: %s" % (i, "; ".join(bad)))
         portfolio = read_json(a.portfolio, "portfolio", required=False)
+        if portfolio is not None and portfolio.get("simulated") is not True:
+            raise RiskError("simulation guard: %s is not marked \"simulated\": true" % a.portfolio)
         pdoc = read_json(a.prices, "prices", required=False) or {}
         prices, times = load_prices(pdoc)
         state = read_json(a.state, "broker state", required=False)

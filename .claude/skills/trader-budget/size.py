@@ -75,7 +75,9 @@ DEFAULTS = {
     "no_entries_after": "15:30",
     "flat_by": "15:55",
     "fractional": False,
-    "broker": "alpaca",
+    "broker": "none",
+    "mode": "simulation",
+    "sim_capital_usd": 1000,
     "paper": True,
     "blocked": [],
     "allow_options": False,
@@ -86,6 +88,74 @@ DEFAULTS = {
 EPS = 1e-9
 FRESH_MINUTES = 15
 SETUP_WORDS = {"orb": "opening-range breakout", "flag": "flag", "bounce": "oversold bounce"}
+
+
+# ==== BEGIN simulation guard (identical in trader-budget/size.py, trader-risk/check.py, trader-broker/ticket.py) ====
+# This project is a paper simulation with USD 1,000 of pretend money. These checks do not trust the
+# "paper" flag alone: the config must say so in several independent ways, or the tool refuses to run.
+SIM_CAPITAL_USD = 1000.0
+_SIM_SECRET_WORDS = ("key", "secret", "token", "password", "passwd", "credential")
+
+
+def sim_config_violations(cfg):
+    """Why this config is NOT a USD 1,000 simulation. An empty list means it is. Fails closed."""
+    if not isinstance(cfg, dict) or not cfg:
+        return ["trader/config.json is missing or empty: a simulation config is required"]
+    v = []
+    if cfg.get("mode") != "simulation":
+        v.append('"mode" must be "simulation"')
+    if cfg.get("paper") is not True:
+        v.append('"paper" must be true')
+    if cfg.get("broker") != "none":
+        v.append('"broker" must be "none": no broker is ever connected')
+    for k in ("allow_margin", "allow_options", "allow_short"):
+        if cfg.get(k) is not False:
+            v.append('"%s" must be false' % k)
+    try:
+        cap = float(cfg.get("sim_capital_usd"))
+    except (TypeError, ValueError):
+        cap = None
+    if cap != SIM_CAPITAL_USD:
+        v.append('"sim_capital_usd" must be 1000')
+    try:
+        budget = float(cfg.get("budget"))
+    except (TypeError, ValueError):
+        budget = None
+    if budget is None or not 0 < budget <= SIM_CAPITAL_USD:
+        v.append('"budget" must be above 0 and at most 1000')
+    for k in cfg:
+        if any(w in str(k).lower() for w in _SIM_SECRET_WORDS):
+            v.append('"%s" looks like a credential: none belong in this project' % k)
+    return v
+
+
+def _sim_ticker_ok(sym):
+    """A plain US stock ticker (AAPL, BRK.B). Option symbols, crypto pairs and anything odd fail."""
+    s = str(sym or "").strip().upper()
+    for sep in (".", "-"):
+        if sep in s:
+            s, suffix = s.split(sep, 1)
+            if not (suffix.isalpha() and suffix.isascii() and 1 <= len(suffix) <= 2):
+                return False
+            break
+    return s.isalpha() and s.isascii() and 1 <= len(s) <= 5
+
+
+def sim_order_violations(order, doc=None):
+    """Why this order cannot be part of the simulation (real-money flags, options, crypto, odd order classes)."""
+    v = []
+    if isinstance(doc, dict) and doc.get("paper") is False:
+        v.append("the orders file says paper is false")
+    if not isinstance(order, dict):
+        return v + ["the order is not an object"]
+    if not _sim_ticker_ok(order.get("symbol")):
+        v.append("%r is not a plain US stock ticker (no options, crypto or other assets)" % (order.get("symbol"),))
+    if str(order.get("side", "")).lower() not in ("buy", "sell"):
+        v.append("side must be buy or sell")
+    if str(order.get("order_class") or "simple").lower() not in ("simple", "bracket"):
+        v.append("order_class %r is not allowed (only simple and bracket)" % (order.get("order_class"),))
+    return v
+# ==== END simulation guard ====
 
 
 class SizeError(Exception):
@@ -757,9 +827,9 @@ def write_orders(path, orders, cfg, source="", now_utc=None):
         "created_by": "trader-budget",
         "created_at": utc_iso(now_utc),
         "status": "proposed",
-        "paper": bool(cfg.get("paper", True)),
-        "note": ("Proposals only. Nothing is placed until trader-risk passes each order "
-                 "and you say yes to it in the chat."),
+        "paper": True, "simulated": True,
+        "note": ("Simulated proposals only (USD 1,000 of pretend money). Nothing is recorded until trader-risk "
+                 "passes each order and you say yes to it in the chat."),
         "source": source,
         "orders": orders,
     }
@@ -866,6 +936,12 @@ def main(argv=None):
     g.add_argument("--cents", action="store_true", help="size to the cent instead of whole dollars")
     a = ap.parse_args(argv)
     try:
+        raw = read_json(a.config, "config") if a.config and os.path.exists(a.config) else {}
+        bad = sim_config_violations(raw)
+        if bad:
+            raise SizeError("simulation guard: " + "; ".join(bad) + ". Real-money trading is not supported here.")
+        if a.budget is not None and not 0 < a.budget <= SIM_CAPITAL_USD:
+            raise SizeError("simulation guard: --budget must be above 0 and at most %d" % SIM_CAPITAL_USD)
         cfg = load_config(a.config)
         if a.weights or a.targets:
             return run_weights(a, cfg)

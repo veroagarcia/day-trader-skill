@@ -145,14 +145,14 @@ does not click it or automate it. The route:
 
 - Education and tooling, not financial advice. Nothing in this pack is a
   recommendation to buy or sell anything.
-- Paper trading by default (`"paper": true` in `trader/config.json`).
-- Nothing places an order except `/trader-broker`, and only after
-  `/trader-risk` passes AND the user types an explicit yes for that order in
-  the chat, AND the brokerage tool is set to "Needs approval" in Claude
-  (Customize > Connectors > tool permissions) so Claude's own "Allow once /
-  Deny" card appears too. Never "Always allow" an order tool.
-- No options, margin, shorting or leverage unless the config allows it and
-  the user confirms.
+- SIMULATION ONLY: USD 1,000 of pretend money. This project has no broker connection and cannot place
+  real orders. Never connect a broker, never use real money, never ask for or store keys or credentials.
+  If asked to trade for real, go live or connect Alpaca, IBKR or any broker: refuse and say it is a simulation.
+- The tools refuse to run unless `trader/config.json` is the simulation config (`"mode": "simulation"`,
+  `"broker": "none"`, `"paper": true`, `"sim_capital_usd": 1000`; margin, options and short selling false).
+- No simulated buy or sell is recorded until trader-risk passed that exact order today AND the user typed an
+  exact confirmation of that one order in the chat (`yes <order ID>`, `/trader-broker`). Never record a fill on your own.
+- No options, margin, short selling or leverage: the code refuses them.
 - Congressional trades are PUBLIC disclosures filed up to 45 days after the
   trade (STOCK Act). This skill reads them fast; it has no inside
   information, and it says so.

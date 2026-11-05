@@ -9,7 +9,7 @@ import unittest
 import urllib.error
 from contextlib import redirect_stdout, redirect_stderr
 
-from _load import load, ROOT, FIX
+from _load import load, ROOT, FIX, SKILLS
 
 alerts = load("trader-alerts", "alerts")
 
@@ -305,7 +305,7 @@ class Rules(unittest.TestCase):
         self.assertEqual(st["rung"]["flat"], "2026-12-01T20:55:00Z")
 
     def test_the_example_rules_are_valid(self):
-        with open(os.path.join(ROOT, "trader-alerts", "alerts.example.json")) as fh:
+        with open(os.path.join(SKILLS, "trader-alerts", "alerts.example.json")) as fh:
             rules = json.load(fh)["rules"]
         for r in rules:
             alerts.validate(r)

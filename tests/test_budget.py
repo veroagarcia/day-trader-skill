@@ -5,13 +5,15 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 
-from _load import load, ROOT, FIX
+from _load import load, ROOT, FIX, SKILLS
 
 size = load("trader-budget", "size")
+size.SIM_CAPITAL_USD = 5000.0  # test only: the reel numbers use a $5,000 account. The shipped cap is 1000 (test_simulation.py)
 
-CFG = os.path.join(ROOT, "trader-budget", "config.example.json")
+CFG = os.path.join(FIX, "reel-config.json")  # the original $5,000 reel numbers, as a simulation config
+EXAMPLE = os.path.join(SKILLS, "trader-budget", "config.example.json")
 PLAN = os.path.join(FIX, "trader-budget", "plan-tsla.json")
-TARGETS = os.path.join(ROOT, "trader-budget", "targets.example.json")
+TARGETS = os.path.join(SKILLS, "trader-budget", "targets.example.json")
 TOP5 = os.path.join(FIX, "trader-budget", "berkshire-q2-2026-top5.json")
 NOW = "2026-10-19 10:15"
 TODAY = "2026-10-19"
@@ -41,6 +43,8 @@ def cfg(**over):
 
 def v1(**over):
     c = dict(V1)
+    c.update({"mode": "simulation", "sim_capital_usd": 5000, "broker": "none", "paper": True, "allow_options": False,
+              "allow_margin": False, "allow_short": False})  # simulation fields; the cap is patched to 5000 above
     c.update(over)
     return c
 
@@ -76,9 +80,11 @@ def prices_doc(price, quote_time="2026-10-19T14:52:13Z"):
 class TheReel(unittest.TestCase):
     """$5,000, 10% buffer, $50 max loss, TSLA risk 5.86 -> 8 shares, $2,913.44, max loss $46.88."""
 
-    def test_config_example_is_the_contract(self):
-        with open(CFG) as fh:
-            self.assertEqual(json.load(fh), CONTRACT_CFG)
+    def test_config_example_keeps_the_contract_keys(self):
+        # same keys as the original contract (minus the personal sec_user_agent) plus the simulation fields
+        with open(EXAMPLE) as fh:
+            ex = json.load(fh)
+        self.assertEqual(set(ex), set(CONTRACT_CFG) - {"sec_user_agent"} | {"mode", "sim_capital_usd"})
 
     def test_tsla_is_8_shares_bound_by_the_max_loss(self):
         s = size.size_trade(plan(), cfg(), today=TODAY)

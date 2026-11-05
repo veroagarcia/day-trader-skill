@@ -20,7 +20,7 @@ import unittest
 import urllib.error
 from contextlib import redirect_stdout, redirect_stderr
 
-from _load import load, FIX, ROOT
+from _load import load, FIX, ROOT, SKILLS
 
 entry = load("trader-entry", "entry")
 
@@ -587,9 +587,9 @@ class Cli(unittest.TestCase):
 
 class SkillDoc(unittest.TestCase):
     def test_skill_md(self):
-        with open(os.path.join(ROOT, "trader-entry", "SKILL.md"), encoding="utf-8") as fh:
+        with open(os.path.join(SKILLS, "trader-entry", "SKILL.md"), encoding="utf-8") as fh:
             text = fh.read()
-        with open(os.path.join(ROOT, "trader-risk", "SKILL.md"), encoding="utf-8") as fh:
+        with open(os.path.join(SKILLS, "trader-risk", "SKILL.md"), encoding="utf-8") as fh:
             risk = fh.read()
         self.assertTrue(text.startswith("---\nname: trader-entry\n"))
         self.assertGreater(len(text.splitlines()), 60)

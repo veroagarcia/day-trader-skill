@@ -3,14 +3,16 @@ import os
 import re
 import unittest
 
-from _load import ROOT
+from _load import ROOT, SKILLS as SKILLS_DIR
 
 # v2, the day-trading pack: the eleven folders the reel's repo card shows
 SKILLS = ["trader-scanner", "trader-news", "trader-entry", "trader-exit", "trader-timemachine",
           "trader-risk", "trader-budget", "trader-broker", "trader-alerts", "trader-analyst",
           "trader-pelosi"]
 ABOUT = ("11 Claude skills for day trading: scan thousands of charts, track breaking news, time every "
-         "entry and exit, and replay every outcome before you risk a dollar.")
+         "entry and exit, and replay every outcome before you risk a dollar.")  # README's first paragraph
+PLUGIN_ABOUT = ("11 Claude skills for day trading practice, simulation only: USD 1,000 of pretend money, no "
+                "broker, no real orders. Scan charts, track news, time entries and exits, and replay every outcome.")
 # skills on the way to an order carry the safety block
 ORDER_PATH = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine", "trader-budget",
               "trader-pelosi", "trader-risk", "trader-broker", "trader-alerts"]
@@ -34,17 +36,20 @@ def every_text_file():
 
 class Repo(unittest.TestCase):
     def test_eleven_skill_folders_at_the_root(self):
-        found = sorted(d for d in os.listdir(ROOT)
-                       if os.path.isfile(os.path.join(ROOT, d, "SKILL.md")))
+        found = sorted(d for d in os.listdir(SKILLS_DIR)
+                       if os.path.isfile(os.path.join(SKILLS_DIR, d, "SKILL.md")))
         self.assertEqual(found, sorted(SKILLS))
 
     def test_root_matches_the_reel(self):
-        root = sorted(d for d in os.listdir(ROOT) if not d.startswith(".git"))
-        self.assertEqual(root, sorted([".claude-plugin", "LICENSE", "README.md", "tests"] + SKILLS))
+        # the skills live only under .claude/skills; trader/ holds the simulation records
+        root = sorted(d for d in os.listdir(ROOT) if not d.startswith(".git") or d == ".gitignore")
+        self.assertEqual(root, sorted([".claude", ".claude-plugin", ".gitignore", "LICENSE", "README.md",
+                                       "tests", "trader"]))
+        self.assertEqual(sorted(os.listdir(os.path.join(ROOT, ".claude"))), ["settings.json", "skills"])
 
     def test_frontmatter_name_and_description(self):
         for s in SKILLS:
-            fm, text = frontmatter(os.path.join(ROOT, s, "SKILL.md"))
+            fm, text = frontmatter(os.path.join(SKILLS_DIR, s, "SKILL.md"))
             self.assertIn("name: %s\n" % s, fm + "\n", s)
             self.assertRegex(fm, r"description: ", s)
             self.assertGreater(len(fm), 200, "%s description is too thin" % s)
@@ -52,7 +57,7 @@ class Repo(unittest.TestCase):
 
     def test_order_path_skills_carry_the_safety_rule(self):
         for s in ORDER_PATH:
-            _, text = frontmatter(os.path.join(ROOT, s, "SKILL.md"))
+            _, text = frontmatter(os.path.join(SKILLS_DIR, s, "SKILL.md"))
             low = " ".join(text.lower().split())
             self.assertIn("not financial advice", low, s)
             self.assertIn("yes", low, s)
@@ -61,8 +66,10 @@ class Repo(unittest.TestCase):
         with open(os.path.join(ROOT, ".claude-plugin", "plugin.json")) as fh:
             plugin = json.load(fh)
         self.assertEqual(plugin["name"], "day-trader-skill")
-        self.assertEqual(plugin["skills"], "./")
-        self.assertEqual(plugin["description"], ABOUT)
+        self.assertEqual(plugin["skills"], "./.claude/skills")
+        self.assertTrue(os.path.isdir(os.path.join(ROOT, plugin["skills"])))
+        self.assertEqual(plugin["description"], PLUGIN_ABOUT)
+        self.assertEqual(plugin["repository"], "https://github.com/veroagarcia/day-trader-skill")
         with open(os.path.join(ROOT, ".claude-plugin", "marketplace.json")) as fh:
             market = json.load(fh)
         self.assertEqual(market["name"], "day-trader-skill")
@@ -72,11 +79,8 @@ class Repo(unittest.TestCase):
         with open(os.path.join(ROOT, "README.md"), encoding="utf-8") as fh:
             readme = " ".join(fh.read().split())
         self.assertTrue(readme.startswith("# The Day Trader skill"))
-        for line in (ABOUT,
-                     "https://github.com/Jakeschincariol/day-trader-skill install skill",
-                     "/plugin marketplace add Jakeschincariol/day-trader-skill",
-                     "/plugin install day-trader-skill@day-trader-skill",
-                     "## Fine print"):
+        for line in (ABOUT, "SIMULATION ONLY", "USD 1,000", "yes <order ID>", "## Fine print",
+                     "Not financial advice"):
             self.assertIn(line, readme)
         for s in SKILLS:
             self.assertIn("/" + s, readme, s)
@@ -89,6 +93,19 @@ class Repo(unittest.TestCase):
             if not rel.startswith(os.path.join("tests", "fixtures")):  # fixtures are real data, kept as published
                 self.assertNotIn("\u2014", text, rel)
             self.assertNotIn("jakeschincariol" + "@" + "gmail.com", text, rel)  # built, so this file passes too
+
+    def test_no_obsolete_install_or_broker_instructions_in_readme_and_manifests(self):
+        docs = [os.path.join(ROOT, "README.md")] + [
+            os.path.join(ROOT, ".claude-plugin", f) for f in sorted(os.listdir(os.path.join(ROOT, ".claude-plugin")))]
+        for path in docs:
+            with open(path, encoding="utf-8") as fh:
+                low = fh.read().lower()
+            rel = os.path.relpath(path, ROOT)
+            for bad in ("alpaca", "ibkr", "interactive brokers", "place_stock_order", "install skill",
+                        "/plugin marketplace add", "/plugin install", "claude_desktop_config", "uvx",
+                        "api_key", "live account", "jakeschincariol/day-trader-skill",
+                        "cp -r day-trader-skill", "~/.claude/skills", "needs approval"):
+                self.assertNotIn(bad, low, "%s still mentions %r" % (rel, bad))
 
     def test_no_v1_only_skill_is_left_behind(self):
         for path in every_text_file():
@@ -103,7 +120,7 @@ class Repo(unittest.TestCase):
     def test_every_tool_runs_on_python_3_8(self):
         # no 3.9+ only modules or syntax in the tools (the README promises 3.8)
         for s in SKILLS:
-            folder = os.path.join(ROOT, s)
+            folder = os.path.join(SKILLS_DIR, s)
             for f in os.listdir(folder):
                 if not f.endswith(".py"):
                     continue
@@ -119,17 +136,18 @@ class Repo(unittest.TestCase):
                         self.assertNotIn(bad, src, "%s/%s" % (s, f))
 
     def test_day_trading_limits_ship_in_the_example_config(self):
-        with open(os.path.join(ROOT, "trader-budget", "config.example.json")) as fh:
+        with open(os.path.join(SKILLS_DIR, "trader-budget", "config.example.json")) as fh:
             cfg = json.load(fh)
         for k in ("max_loss_per_trade_usd", "max_daily_loss_usd", "max_trades_per_day",
                   "min_reward_risk", "require_stop", "no_entries_after", "flat_by"):
             self.assertIn(k, cfg, k)
         self.assertIs(cfg["require_stop"], True)
+        self.assertIs(cfg.get("allow_options", False), False)
         self.assertIs(cfg.get("allow_short", False), False)
         self.assertIs(cfg.get("allow_margin", False), False)
 
     def test_paper_trading_is_the_default(self):
-        with open(os.path.join(ROOT, "trader-budget", "config.example.json")) as fh:
+        with open(os.path.join(SKILLS_DIR, "trader-budget", "config.example.json")) as fh:
             cfg = json.load(fh)
         self.assertIs(cfg["paper"], True)
         self.assertIs(cfg.get("allow_options", False), False)
