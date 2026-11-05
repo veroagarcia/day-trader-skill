@@ -6,12 +6,13 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 
-from _load import load, ROOT, FIX
+from _load import load, ROOT, FIX, SKILLS
 
 check = load("trader-risk", "check")
+check.SIM_CAPITAL_USD = 5000.0  # test only: the reel numbers use a $5,000 account (see test_simulation.py)
 ticket = load("trader-broker", "ticket")
 
-CFG_PATH = os.path.join(ROOT, "trader-budget", "config.example.json")
+CFG_PATH = os.path.join(FIX, "reel-config.json")
 TSLA_PATH = os.path.join(FIX, "trader-risk", "orders-tsla.json")
 V1_ORDERS_PATH = os.path.join(FIX, "trader-risk", "orders-reel.json")
 NOW = "2026-10-19 10:15"
@@ -38,6 +39,8 @@ def cfg(**over):
 
 def v1(**over):
     c = dict(V1)
+    c.update({"mode": "simulation", "sim_capital_usd": 5000, "broker": "none", "paper": True, "allow_options": False,
+              "allow_margin": False, "allow_short": False})  # simulation fields; the cap is patched to 5000 above
     c.update(over)
     return c
 

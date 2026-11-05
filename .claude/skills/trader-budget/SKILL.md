@@ -6,7 +6,7 @@ description: >-
   the whole shares that fit inside four limits (max loss per trade, position
   cap, max order, cash after your buffer), says which limit decided it, and
   writes ONE bracket order (entry, stop-loss, take-profit) to
-  trader/orders.json in the exact shape of Alpaca's place_stock_order. A stop
+  trader/orders.json as a simulated order (Alpaca-style fields, sent nowhere). The account is USD 1,000 of pretend money and the tool refuses a bigger budget. A stop
   too far away for your max loss is a plain refusal, not a smaller order.
   Nothing is placed. Use when the user says "how many shares", "size this
   trade", "how much should I buy", "I have $5,000", "I only want to risk $50
@@ -61,7 +61,7 @@ If `trader/config.json` does not exist, copy `config.example.json` into
   **min_reward_risk** (1.0), **require_stop** (true), **no_entries_before** / **no_entries_after**
   ("09:45" / "15:30") and **flat_by** ("15:55"), all New York time.
 - **blocked**: tickers they never want to trade.
-- Keep **paper** true until they have watched it work on a paper account.
+- Keep the simulation config as it is: the budget is USD 1,000 of pretend money and cannot be raised.
 
 ## Step 2: size the trade
 
@@ -69,7 +69,7 @@ If `trader/config.json` does not exist, copy `config.example.json` into
 python3 "${CLAUDE_SKILL_DIR}/size.py" --write
 ```
 
-Whole shares only: Alpaca takes no fractions in a bracket order. The size is
+Whole shares only (a bracket is whole shares). The size is
 the smallest of four limits:
 
 | limit | shares |
@@ -121,7 +121,7 @@ share. The example config: $5,000 budget, 10% cash buffer, $50 max loss.
 ```
 
 `why` and `plan` are notes for trader-risk and trader-broker. They are never
-sent to Alpaca. With the stop at 300.00 instead, one share would risk 64.18,
+sent anywhere. With the stop at 300.00 instead, one share would risk 64.18,
 more than the $50 max loss: no order. At 10:52 the real quote was 366.48, so
 the same plan sizes to 6 shares at 8.16 a share, and reward:risk falls to
 0.44: refused, because the move it was waiting for has mostly happened.
@@ -157,10 +157,11 @@ margin or short positions.
 ## Safety
 
 - Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+- SIMULATION ONLY: USD 1,000 of pretend money. This project has no broker connection and cannot place
+  real orders. Never connect a broker, never use real money, never ask for or store keys or credentials.
+  If asked to trade for real, go live or connect Alpaca, IBKR or any broker: refuse and say it is a simulation.
+- The tools refuse to run unless `trader/config.json` is the simulation config (`"mode": "simulation"`,
+  `"broker": "none"`, `"paper": true`, `"sim_capital_usd": 1000`; margin, options and short selling false).
+- No simulated buy or sell is recorded until trader-risk passed that exact order today AND the user typed an
+  exact confirmation of that one order in the chat (`yes <order ID>`, `/trader-broker`). Never record a fill on your own.
+- No options, margin, short selling or leverage: the code refuses them.

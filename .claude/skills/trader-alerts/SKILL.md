@@ -20,9 +20,8 @@ argument-hint: "[ticker] [price]"
 
 Price Alerts watches the numbers so the user does not have to stare at a
 chart. An alert is information, never an order: when a stop alert rings,
-nothing is sold by this skill. With a bracket order the stop-loss and the
-take-profit already sit at the broker and do the work; the alerts tell the
-user what happened and when it is time to be flat.
+nothing is sold by this skill. In this simulation the stop and the target are plan levels, not orders at a broker;
+the alerts tell the user a level was reached and when it is time to be flat.
 
 `${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
 
@@ -81,9 +80,8 @@ close, so "flat by close" at 15:55 rings at 12:55 on those days.
   and for checking a size, not for timing an order. The broker's price is the
   one that fills. Each price in `trader/prices.json` keeps its quote time, and
   trader-risk only uses one under 15 minutes old.
-- If both are down, read the price from the broker connector (Alpaca
-  `get_stock_snapshot`, IBKR `get_price_snapshot`) and write it into
-  `trader/prices.json` as `{"as_of": "...Z", "prices": {"TSLA": 366.48}}`.
+- If both are down, ask the user for the price (or take the last bar from trader-entry) and write it into
+  `trader/prices.json` as `{"as_of": "...Z", "prices": {"TSLA": 366.48}}`. No broker is connected.
 
 ## The NYSE clock
 
@@ -110,8 +108,8 @@ holiday list is unknown.
    rules and rings each alert once. A check reads the latest delayed quote;
    it is not a live feed, and a price can pass a level between two checks.
 3. Tell the user what rang in one line each. A stop or target alert means the
-   bracket order has probably filled: check `get_open_position` and record the
-   fill with trader-broker. "Flat by close" means close anything still open:
+   simulated stop or target level was reached: it sells nothing by itself. Offer
+   the user a sell ticket with trader-broker `flatten`. "Flat by close" means close anything still open:
    trader-broker `flatten`, then trader-risk, then the user's yes. Never act
    for them.
 
@@ -151,10 +149,11 @@ live, and never predicts where a price is going.
 ## Safety
 
 - Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+- SIMULATION ONLY: USD 1,000 of pretend money. This project has no broker connection and cannot place
+  real orders. Never connect a broker, never use real money, never ask for or store keys or credentials.
+  If asked to trade for real, go live or connect Alpaca, IBKR or any broker: refuse and say it is a simulation.
+- The tools refuse to run unless `trader/config.json` is the simulation config (`"mode": "simulation"`,
+  `"broker": "none"`, `"paper": true`, `"sim_capital_usd": 1000`; margin, options and short selling false).
+- No simulated buy or sell is recorded until trader-risk passed that exact order today AND the user typed an
+  exact confirmation of that one order in the chat (`yes <order ID>`, `/trader-broker`). Never record a fill on your own.
+- No options, margin, short selling or leverage: the code refuses them.

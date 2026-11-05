@@ -1,13 +1,12 @@
 {
   "name": "day-trader-skill",
-  "description": "11 Claude skills for day trading: scan thousands of charts, track breaking news, time every entry and exit, and replay every outcome before you risk a dollar.",
-  "version": "2.0.0",
+  "description": "11 Claude skills for day trading practice, simulation only: USD 1,000 of pretend money, no broker, no real orders. Scan charts, track news, time entries and exits, and replay every outcome.",
+  "version": "2.0.0-simulation",
   "author": {
-    "name": "Jake Schincariol",
-    "url": "https://opusjake.ai"
+    "name": "Jake Schincariol (original author); simulation-only changes in this copy"
   },
-  "homepage": "https://github.com/Jakeschincariol/day-trader-skill",
-  "repository": "https://github.com/Jakeschincariol/day-trader-skill",
+  "homepage": "https://github.com/veroagarcia/day-trader-skill",
+  "repository": "https://github.com/veroagarcia/day-trader-skill",
   "license": "MIT",
   "keywords": [
     "claude-code",
@@ -16,7 +15,7 @@
     "stock-market",
     "backtesting",
     "opening-range-breakout",
-    "paper-trading"
+    "simulation"
   ],
-  "skills": "./"
+  "skills": "./.claude/skills"
 }

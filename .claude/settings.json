@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "deny": [
+      "mcp__alpaca",
+      "mcp__alpaca__*",
+      "mcp__ibkr",
+      "mcp__ibkr__*",
+      "mcp__interactive-brokers",
+      "mcp__interactive-brokers__*"
+    ],
+    "ask": [
+      "Bash(python3 *ticket.py approve*)",
+      "Bash(python3 *ticket.py result*)"
+    ]
+  }
+}

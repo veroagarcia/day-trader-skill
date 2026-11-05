@@ -194,10 +194,11 @@ never calls data real time, and never promises that a setup works.
 ## Safety
 
 - Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+- SIMULATION ONLY: USD 1,000 of pretend money. This project has no broker connection and cannot place
+  real orders. Never connect a broker, never use real money, never ask for or store keys or credentials.
+  If asked to trade for real, go live or connect Alpaca, IBKR or any broker: refuse and say it is a simulation.
+- The tools refuse to run unless `trader/config.json` is the simulation config (`"mode": "simulation"`,
+  `"broker": "none"`, `"paper": true`, `"sim_capital_usd": 1000`; margin, options and short selling false).
+- No simulated buy or sell is recorded until trader-risk passed that exact order today AND the user typed an
+  exact confirmation of that one order in the chat (`yes <order ID>`, `/trader-broker`). Never record a fill on your own.
+- No options, margin, short selling or leverage: the code refuses them.
